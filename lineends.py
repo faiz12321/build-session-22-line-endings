@@ -7,6 +7,8 @@ It only reads files. It never changes, renames or creates one.
 """
 import os
 import sys
+import stat
+from pathlib import Path
 
 TEXT_TYPES = (".txt", ".md", ".py", ".csv", ".json", ".html", ".css", ".js")
 SHOW = 20  # how many files to print
@@ -27,8 +29,26 @@ def label(crlf, lf, cr):
     return "mixed"
 
 
+def safe_input(value, directory=False):
+    path = Path(value).absolute()
+    if '..' in path.parts:
+        raise OSError('Parent-traversal paths are unsupported.')
+    for part in [*reversed(path.parents), path]:
+        info = part.lstat()
+        if stat.S_ISLNK(info.st_mode) or getattr(info,'st_file_attributes',0) & 0x400:
+            raise OSError('Links/reparse points are unsupported.')
+    info = path.lstat()
+    if directory:
+        if not stat.S_ISDIR(info.st_mode):
+            raise OSError('Expected an ordinary directory.')
+    elif not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        raise OSError('Expected an ordinary singly linked file.')
+    return path
+
+
 def check_file(path):
-    """Return None for a file that contains zero bytes (binary, or text such as UTF-16), else (crlf, lf, cr)."""
+    """Return None for a file that contains NUL bytes (binary, or text such as UTF-16), else (crlf, lf, cr)."""
+    path = safe_input(path)
     with open(path, "rb") as f:
         data = f.read()
     if b"\x00" in data:
@@ -37,17 +57,31 @@ def check_file(path):
 
 
 def scan_folder(folder):
+    folder = safe_input(folder, directory=True)
     rows = []
     skipped = 0
-    for dirpath, dirnames, filenames in os.walk(folder):
-        dirnames.sort()
-        for name in sorted(filenames):
-            if not name.lower().endswith(TEXT_TYPES):
+    total = 0
+    stack = [folder]
+    while stack:
+        current = stack.pop()
+        safe_input(current, directory=True)
+        with os.scandir(current) as entries:
+            ordered = sorted(entries, key=lambda entry: entry.name)
+        for entry in ordered:
+            total += 1
+            if total > 10000:
+                raise OSError('More than 10000 entries; refusing this tree.')
+            info = entry.stat(follow_symlinks=False)
+            directory = stat.S_ISDIR(info.st_mode)
+            child = safe_input(entry.path, directory=directory)
+            if directory:
+                stack.append(child)
+            elif not entry.name.lower().endswith(TEXT_TYPES):
                 skipped += 1
-                continue
-            path = os.path.join(dirpath, name)
-            rel = os.path.relpath(path, folder).replace(os.sep, "/")
-            rows.append((rel, check_file(path)))
+            else:
+                rel = str(child.relative_to(folder)).replace(os.sep, '/')
+                rows.append((rel, check_file(child)))
+    rows.sort(key=lambda row: row[0])
     return rows, skipped
 
 
@@ -57,7 +91,7 @@ def report(rows, skipped=0):
     print("Files checked:", len(rows))
     for name, counts in rows:
         if counts is None:
-            text = "has zero bytes (binary or UTF-16), not counted"
+            text = "contains NUL bytes (possibly binary or UTF-16), not counted"
         else:
             text = f"{label(*counts)} (CRLF {counts[0]}, LF {counts[1]}, CR {counts[2]})"
             if label(*counts) == "mixed":

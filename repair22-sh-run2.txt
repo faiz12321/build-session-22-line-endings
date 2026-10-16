@@ -1,0 +1,83 @@
+### CMD: python --version
+Python 3.12.3
+### EXIT: 0
+
+### CMD: python make_sample.py
+Made sample/tree with eight small files
+### EXIT: 0
+
+### CMD: python make_sample.py
+Stopped: sample already exists. Nothing was replaced or deleted.
+### EXIT: 1
+
+### CMD: python lineends.py file sample/tree/todo.txt
+'buy milk\ncall Sam\n'
+### EXIT: 0
+
+### CMD: python lineends.py folder sample/tree
+Files checked: 6
+  'docs/data.csv': CRLF (CRLF 2, LF 0, CR 0)
+  'docs/plan.txt': no line endings (CRLF 0, LF 0, CR 0)
+  'docs/utf16.txt': contains NUL bytes (possibly binary or UTF-16), not counted
+  'draft.md': mixed (CRLF 2, LF 2, CR 0)
+  'notes.txt': LF (CRLF 0, LF 3, CR 0)
+  'todo.txt': CRLF (CRLF 2, LF 0, CR 0)
+Files with other extensions, not checked: 2
+Files that mix line endings: 1
+Nothing was changed.
+### EXIT: 1
+
+### CMD: python lineends.py file sample/tree/todo.txt
+Files checked: 1
+  'todo.txt': CRLF (CRLF 2, LF 0, CR 0)
+Files that mix line endings: 0
+Nothing was changed.
+### EXIT: 0
+
+### CMD: python -m unittest -v
+test_cr_only (test_lineends.Counting.test_cr_only) ... ok
+test_crlf_not_counted_twice (test_lineends.Counting.test_crlf_not_counted_twice) ... ok
+test_crlf_only (test_lineends.Counting.test_crlf_only) ... ok
+test_empty (test_lineends.Counting.test_empty) ... ok
+test_labels (test_lineends.Counting.test_labels) ... ok
+test_lf_only (test_lineends.Counting.test_lf_only) ... ok
+test_mixed (test_lineends.Counting.test_mixed) ... ok
+test_two_returns_then_newline (test_lineends.Counting.test_two_returns_then_newline) ... ok
+test_file_mode_any_extension (test_lineends.Files.test_file_mode_any_extension) ... ok
+test_file_mode_lf (test_lineends.Files.test_file_mode_lf) ... ok
+test_file_mode_mixed_returns_1 (test_lineends.Files.test_file_mode_mixed_returns_1) ... ok
+test_missing_file (test_lineends.Files.test_missing_file) ... ok
+test_unreadable_file (test_lineends.Files.test_unreadable_file) ... ok
+test_usage (test_lineends.Files.test_usage) ... ok
+test_zero_bytes_not_counted (test_lineends.Files.test_zero_bytes_not_counted) ... ok
+test_folder_root_link_refused (test_lineends.FilesystemSafety.test_folder_root_link_refused) ... ok
+test_list_hardlink_refused (test_lineends.FilesystemSafety.test_list_hardlink_refused) ... ok
+test_list_linked_parent_refused (test_lineends.FilesystemSafety.test_list_linked_parent_refused) ... ok
+test_list_symlink_existing_dangling_and_selfloop_refused (test_lineends.FilesystemSafety.test_list_symlink_existing_dangling_and_selfloop_refused) ... ok
+test_scandir_permission_error_is_not_a_clean_report (test_lineends.FilesystemSafety.test_scandir_permission_error_is_not_a_clean_report) ... ok
+test_setup_linked_parent_refused (test_lineends.FilesystemSafety.test_setup_linked_parent_refused) ... ok
+test_setup_traversal_refused (test_lineends.FilesystemSafety.test_setup_traversal_refused) ... ok
+test_skipped_extension_link_still_refused (test_lineends.FilesystemSafety.test_skipped_extension_link_still_refused) ... ok
+test_traversal_refused (test_lineends.FilesystemSafety.test_traversal_refused) ... ok
+test_tree_file_link_refused (test_lineends.FilesystemSafety.test_tree_file_link_refused) ... ok
+test_tree_hardlink_refused (test_lineends.FilesystemSafety.test_tree_hardlink_refused) ... ok
+test_tree_recursive_loop_refused (test_lineends.FilesystemSafety.test_tree_recursive_loop_refused) ... ok
+test_tree_special_pipe_refused (test_lineends.FilesystemSafety.test_tree_special_pipe_refused) ... ok
+test_clean_folder (test_lineends.Folder.test_clean_folder) ... ok
+test_extension_in_capitals (test_lineends.Folder.test_extension_in_capitals) ... ok
+test_forward_slashes_in_names (test_lineends.Folder.test_forward_slashes_in_names) ... ok
+test_not_a_folder (test_lineends.Folder.test_not_a_folder) ... ok
+test_only_first_20_shown (test_lineends.Folder.test_only_first_20_shown) ... ok
+test_sample_folder (test_lineends.Folder.test_sample_folder) ... ok
+test_file_is_opened_for_reading_only (test_lineends.ReadOnly.test_file_is_opened_for_reading_only) ... ok
+test_nothing_changed_or_created (test_lineends.ReadOnly.test_nothing_changed_or_created) ... ok
+test_cli_repeat_preserves_every_output (test_lineends.SafeSetup.test_cli_repeat_preserves_every_output) ... ok
+test_existing_file_preserved (test_lineends.SafeSetup.test_existing_file_preserved) ... ok
+test_existing_folder_preserves_nested_bytes_and_mtime (test_lineends.SafeSetup.test_existing_folder_preserves_nested_bytes_and_mtime) ... ok
+test_repeat_preserves_every_output (test_lineends.SafeSetup.test_repeat_preserves_every_output) ... ok
+
+----------------------------------------------------------------------
+Ran 40 tests in 0.106s
+
+OK
+### EXIT: 0

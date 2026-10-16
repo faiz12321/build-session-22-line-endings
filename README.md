@@ -6,10 +6,10 @@ Python's own documentation for `open` and `io` says text can end its lines with 
 
 ## Run it
 
-    python make_sample.py                          # makes a small folder of made-up files in sample/
+    python make_sample.py                          # creates NEW fictional sample/; existing paths refuse
     python lineends.py folder sample/tree          # check every text file in a folder
     python lineends.py file sample/tree/todo.txt   # check one file
-    python -m unittest -v                          # twenty-three automated tests
+    python -m unittest -v                          # 40 small fixture tests
 
 On Windows, if `python` is not found, use `py`.
 
@@ -22,7 +22,7 @@ On Windows, if `python` is not found, use `py`.
 ## Notes
 
 - Folder mode only looks at files ending in .txt .md .py .csv .json .html .css .js. Other files are counted as not checked.
-- A file containing a zero byte is not counted. This includes text saved as UTF-16, which is not read by this tool.
+- Files containing NUL bytes are skipped, including the UTF-16 fixture. This is a heuristic, not binary detection or encoding validation; it may miss NUL-free encodings/binary. Extension filtering is also only a heuristic.
 - "Mixed" means a file has more than one kind of line ending. A file with a single line and no ending is reported as having none.
 - Only the first 20 files are printed. The count covers all of them.
 - Names are printed with special characters written as escapes, so they show on any console.
@@ -30,3 +30,13 @@ On Windows, if `python` is not found, use `py`.
 - Tested only on tiny made-up files. Python 3.10 and 3.12 on Linux, and, by GitHub Actions, Python 3.12 on Windows and Ubuntu. Not tested on a Windows 10 or 11 desktop or on real folders.
 - Educational example, no warranty. Use at your own risk.
 - Code is MIT licensed (see LICENSE). Python belongs to its owners; this repository does not include it.
+
+## Setup and traversal repairs
+
+Use a NEW empty lesson folder. Setup exclusively creates sample/ and eight tiny fixture files. Existing folder/file paths, traversal and linked/reparse parents refuse; repeat setup does not reset. If interrupted, use another new lesson folder instead of deleting existing data.
+
+Final checker refuses input/ancestor/tree links/reparse points, hardlinks, special entries and traversal, even when the entry has a skipped extension. The old os.walk traversal could suppress errors and report a partial tree clean; the new traversal propagates enumeration errors. Scan cap10000entries. Files and entry lists are still read into memory, so this is not a resource sandbox. Stop editors/sync; no hostile-race guarantee.
+
+40 small tests: original23 byte-count/report/listing cases, four setup-preservation and13filesystem/error/traversal cases. NUL wording clarified, not a new encoding detector. Windows skips Unixpipe; symlink cases can skip when unavailable. No real migration or every-encoding proof. No upload/network code; other software/sync uncontrolled. Output exposes names/paths.
+
+Two Windows and two Ubuntu full replays pass40small tests. Platform pairs differ only in unittest time. Windows skips Unixpipe; Ubuntu runs it. Both exercise symlinks. Code MIT licensed.

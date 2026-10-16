@@ -1,0 +1,26 @@
+name: test
+on: [push, workflow_dispatch]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest -v
+      - run: python make_sample.py
+      - name: Reports on the sample files
+        shell: python
+        run: |
+          import subprocess, sys
+          def run(*args):
+              return subprocess.run([sys.executable, "lineends.py", *args], capture_output=True, text=True)
+          folder = run("folder", "sample/tree")
+          assert folder.returncode == 1 and "Files checked: 6" in folder.stdout and "'draft.md': mixed (CRLF 2, LF 2, CR 0)" in folder.stdout and "mix line endings: 1" in folder.stdout, folder.stdout
+          one = run("file", "sample/tree/todo.txt")
+          assert one.returncode == 0 and "'todo.txt': CRLF (CRLF 2, LF 0, CR 0)" in one.stdout, one.stdout
+          print("Sample line ending reports checked.")

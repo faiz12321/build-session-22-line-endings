@@ -71,7 +71,7 @@ class Files(unittest.TestCase):
     def test_zero_bytes_not_counted(self):
         code, out = run("file", self.write("a.txt", "hi\r\n".encode("utf-16")))
         self.assertEqual(code, 0)
-        self.assertIn("has zero bytes", out)
+        self.assertIn("contains NUL bytes", out)
 
     def test_file_mode_any_extension(self):
         code, out = run("file", self.write("a.data", b"x\n"))
@@ -176,6 +176,125 @@ class ReadOnly(unittest.TestCase):
             run("folder", folder / "tree")
         self.assertTrue(modes)
         self.assertEqual(set(modes), {"rb"})
+
+
+
+class SafetyBase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+        self.sample = make_sample.make(self.dir/'sample')
+
+class SafeSetup(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.sample = self.root / 'sample'
+
+    def test_existing_folder_preserves_nested_bytes_and_mtime(self):
+        (self.sample / 'nested').mkdir(parents=True)
+        keep = self.sample / 'nested' / 'keep'
+        keep.write_bytes(b'KEEP')
+        before = keep.read_bytes(), keep.stat().st_mtime_ns
+        with self.assertRaises(FileExistsError):
+            make_sample.make(self.sample)
+        self.assertEqual(before, (keep.read_bytes(), keep.stat().st_mtime_ns))
+
+    def test_existing_file_preserved(self):
+        self.sample.write_bytes(b'KEEP')
+        before = self.sample.read_bytes(), self.sample.stat().st_mtime_ns
+        with self.assertRaises(FileExistsError):
+            make_sample.make(self.sample)
+        self.assertEqual(before, (self.sample.read_bytes(), self.sample.stat().st_mtime_ns))
+
+    def test_repeat_preserves_every_output(self):
+        make_sample.make(self.sample)
+        before = {str(p.relative_to(self.sample)):(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.rglob('*') if p.is_file()}
+        with self.assertRaises(FileExistsError):
+            make_sample.make(self.sample)
+        self.assertEqual(before, {str(p.relative_to(self.sample)):(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.rglob('*') if p.is_file()})
+
+    def test_cli_repeat_preserves_every_output(self):
+        import subprocess, sys
+        script = self.root / 'make_sample.py'
+        shutil.copyfile(Path(make_sample.__file__).resolve(), script)
+        make_sample.make(self.sample)
+        before = {str(p.relative_to(self.sample)):(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.rglob('*') if p.is_file()}
+        result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('sample already exists', result.stderr)
+        self.assertEqual(before, {str(p.relative_to(self.sample)):(p.read_bytes(),p.stat().st_mtime_ns) for p in self.sample.rglob('*') if p.is_file()})
+
+
+
+
+class FilesystemSafety(SafetyBase):
+    def link(self,path,target,directory=False):
+        try:path.symlink_to(target,target_is_directory=directory)
+        except OSError:self.skipTest('Symlink creation unavailable')
+
+    def test_list_hardlink_refused(self):
+        target=self.sample/'tree'/'notes.txt';before=target.read_bytes(),target.stat().st_mtime_ns
+        link=self.dir/'hard.txt';os.link(target,link)
+        self.assertEqual(run('file',link)[0],2)
+        self.assertEqual(before,(target.read_bytes(),target.stat().st_mtime_ns))
+
+    def test_list_symlink_existing_dangling_and_selfloop_refused(self):
+        link=self.dir/'link';self.link(link,self.sample/'tree'/'notes.txt')
+        self.assertEqual(run('file',link)[0],2);link.unlink()
+        self.link(link,self.dir/'absent');self.assertEqual(run('file',link)[0],2);link.unlink()
+        self.link(link,link);self.assertEqual(run('file',link)[0],2)
+
+    def test_list_linked_parent_refused(self):
+        link=self.dir/'linked';self.link(link,self.sample,True)
+        self.assertEqual(run('file',link/'tree'/'notes.txt')[0],2)
+
+    def test_folder_root_link_refused(self):
+        link=self.dir/'linked';self.link(link,self.sample/'tree',True)
+        self.assertEqual(run('folder',link)[0],2)
+
+    def test_tree_file_link_refused(self):
+        link=self.sample/'tree'/'link';self.link(link,self.sample/'tree'/'notes.txt')
+        self.assertEqual(run('folder',self.sample/'tree')[0],2)
+
+    def test_skipped_extension_link_still_refused(self):
+        link=self.sample/'tree'/'skip.bin';self.link(link,self.sample/'tree'/'notes.txt')
+        self.assertEqual(run('folder',self.sample/'tree')[0],2)
+
+    def test_tree_recursive_loop_refused(self):
+        tree=self.sample/'tree';self.link(tree/'loop',tree,True)
+        self.assertEqual(run('folder',tree)[0],2)
+
+    def test_tree_hardlink_refused(self):
+        target=self.sample/'tree'/'notes.txt';os.link(target,self.sample/'tree'/'hard')
+        self.assertEqual(run('folder',self.sample/'tree')[0],2)
+
+    def test_tree_special_pipe_refused(self):
+        if not hasattr(os,'mkfifo'):self.skipTest('Unix pipe unavailable')
+        tree=self.sample/'tree';os.mkfifo(tree/'pipe')
+        self.assertEqual(run('folder',tree)[0],2)
+        self.assertEqual(run('file',tree/'pipe')[0],2)
+
+    def test_traversal_refused(self):
+        self.assertEqual(run('file',self.sample/'..'/'sample'/'tree'/'notes.txt')[0],2)
+        self.assertEqual(run('folder',self.sample/'..'/'sample'/'tree')[0],2)
+
+    def test_scandir_permission_error_is_not_a_clean_report(self):
+        with mock.patch('os.scandir',side_effect=PermissionError('simulated denial')):
+            code,out=run('folder',self.sample/'tree')
+        self.assertEqual(code,2);self.assertIn('simulated denial',out)
+
+    def test_setup_linked_parent_refused(self):
+        link=self.dir/'linked';self.link(link,self.dir,True)
+        with self.assertRaises(OSError):make_sample.make(link/'new')
+        self.assertFalse((self.dir/'new').exists())
+
+    def test_setup_traversal_refused(self):
+        with self.assertRaises(OSError):make_sample.make(self.dir/'..'/self.dir.name/'new')
+        self.assertFalse((self.dir/'new').exists())
+
 
 
 if __name__ == "__main__":
